@@ -30,7 +30,6 @@ const DataTypes = {
 	'TEXT': String.prototype,
 	'CLOB': String.prototype,
 	'BLOB': String.prototype,
-	'BLOB': String.prototype,
 	
 	'REAL': Number.prototype,
 	'DOUBLE': Number.prototype,
