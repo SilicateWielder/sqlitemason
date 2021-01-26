@@ -13,38 +13,48 @@ const sqlite = require('sqlite3');
 // Type definitions. Used to compare and reject invalid data on new record insertions or updates.
 // Additionally, used for formatting SQL Queries.
 const DataTypes = {
-	'INT': Number.prototype,
-	'INTEGER': Number.prototype,
-	'TINYINT': Number.prototype,
-	'SMALLINT': Number.prototype,
-	'MEDIUMINT': Number.prototype,
-	'BIGINT': Number.prototype,
-	'UNISIGNED BIG INT': Number.prototype,
-	'INT2': Number.prototype,
-	'INT8': Number.prototype,
+	'INT': 'number',
+	'INTEGER': 'number',
+	'TINYINT': 'number',
+	'SMALLINT': 'number',
+	'MEDIUMINT': 'number',
+	'BIGINT': 'number',
+	'UNISIGNED BIG INT': 'number',
+	'INT2': 'number',
+	'INT8': 'number',
 	
-	'CHARACTER': String.prototype,
-	'VARCHAR': String.prototype,
-	'VARYING CHARACTER': String.prototype,
-	'NCHAR': String.prototype,
-	'NATIVE CHARACTER': String.prototype,
-	'NVARCHAR': String.prototype,
-	'TEXT': String.prototype,
-	'CLOB': String.prototype,
-	'BLOB': String.prototype,
-	'BLOB': String.prototype,
+	'CHARACTER': 'string',
+	'VARCHAR': 'string',
+	'VARYING CHARACTER': 'string',
+	'NCHAR': 'string',
+	'NATIVE CHARACTER': 'string',
+	'NVARCHAR': 'string',
+	'TEXT': 'string',
+	'CLOB': 'string',
 	
-	'REAL': Number.prototype,
-	'DOUBLE': Number.prototype,
-	'DOUBLE PRECISION': Number.prototype,
-	'FLOAT': Number.prototype,
+	'BLOB': 'string',
 	
-	'NUMERIC': Number.prototype,
-	'DECIMAL': Number.prototype,
-	'BOOLEAN': Boolean.prototype,
-	'DATE': String.prototype,
-	'DATETIME': String.prototype,
+	'REAL': 'number',
+	'DOUBLE': 'number',
+	'DOUBLE PRECISION': 'number',
+	'FLOAT': 'number',
+	
+	'NUMERIC': 'number',
+	'DECIMAL': 'number',
+	'BOOLEAN': 'boolean',
+	'DATE': 'string',
+	'DATETIME': 'string',
 };
+
+// Used for verifying operators are valid.
+const Operators = {
+	'!=' : true,
+	'=' : true,
+	'>' : true,
+	'>=' : true,
+	'<' : true,
+	'<=' : true
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -156,7 +166,12 @@ class SQLiteMason
 			
 			for(let e = 0; e < tableFields.length; e++)
 			{
-				elements += currentRecord[tableFields[e]];
+				let fieldName = tableFields[e];
+				let fieldType = tableFieldData[fieldName].type;
+				
+				let isString = (DataTypes[fieldType] == 'string');
+				
+				elements += (isString) ? ("'" + currentRecord[tableFields[e]] + "'") : (currentRecord[tableFields[e]]);
 				
 				if (e < tableFields.length - 1) elements += ',';
 			}
@@ -201,7 +216,11 @@ class SQLiteMason
 	//////////////////////////////////////////////////////////////////////////////////////////
 	
 	commitTableRecords(tableName, array) {
+		if(array != undefined) this.cache.tables[tableName].records = array;
 		
+		this.runSQL(this.getTableRecordSQL(tableName));
+		
+		return true;
 	}
 	
 	//////////////////////////////////////////////////////////////////////////////////////////
@@ -225,6 +244,11 @@ class SQLiteMason
 			let key = this.defaultRowFlagsKeys[i];
 			
 			if(data[key] != undefined) {
+				
+				if(key == 'type' && DataTypes[data[key]] == undefined)
+				{
+					throw ('Invalid datatype: ' + data[key]);
+				}
 				
 				newRow[key] = data[key];
 				
@@ -299,13 +323,13 @@ console.log('Beginning Self-test, false positives may be abound...');
 
 testResults.CreateTable1 = testdb.addTable('users');
 testResults.CreateField1 = testdb.addTableField('users', { name: 'internal_id', type: 'BIGINT', unique: true, primary: true, notNull: true });
-testResults.CreateField2 = testdb.addTableField('users', { name: 'discord_id', type: 'BLOB_TEXT', unique: true, notNull: true });
+testResults.CreateField2 = testdb.addTableField('users', { name: 'discord_id', type: 'TEXT', unique: true, notNull: true });
 testResults.CreateField3 = testdb.addTableField('users', { name: 'sys_admin', type: 'BOOLEAN', notNull: true, defaultVal: '0'});
 testResults.AddRecord1 = testdb.addRecord('users', { 'internal_id': '12312', 'discord_id': '43242341235452354', 'sys_admin': false});
 testResults.AddRecord2 = testdb.addRecord('users', { 'internal_id': '12313', 'discord_id': '00002341235452354', 'sys_admin': false});
 
 testResults.CommitTable1 = testdb.commitTable('users');
 
-console.log(testdb.getTableRecordSQL('users'));
+testResults.CommitRecords1 = testdb.commitTableRecords('users');
 
 checkTestResults(testResults);
