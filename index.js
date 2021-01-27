@@ -54,7 +54,7 @@ const Operators = {
 	'>=' : true,
 	'<' : true,
 	'<=' : true
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -175,7 +175,7 @@ class SQLiteMason
 		
 		for(let i = 0; i < tableRecords.length; i++)
 		{
-			const currentRecord = tableRecords[i]
+			const currentRecord = tableRecords[i];
 			let end = (i < tableRecords.length - 1) ? '),\n' : ')';
 			
 			let elements = '(';
