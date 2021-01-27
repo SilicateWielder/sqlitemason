@@ -92,8 +92,26 @@ class SQLiteMason
 	
 	//////////////////////////////////////////////////////////////////////////////////////////
 	
-	getSQL(query) {
-		return this.db.get(query);
+	getDataSQL(query, params) {
+		return new Promise((resolve, reject) => {
+			this.db.get(query, params, (err, result) => {
+				if (err) reject(err);
+				
+				resolve(result);
+			})
+		})
+	}
+	
+	//////////////////////////////////////////////////////////////////////////////////////////
+	
+	allDataSQL(query, params) {
+		return new Promise((resolve, reject) => {
+			this.db.all(query, params, (err, result) => {
+				if (err) reject(err);
+				
+				resolve(result);
+			})
+		})
 	}
 	
 	//////////////////////////////////////////////////////////////////////////////////////////
@@ -286,10 +304,7 @@ class SQLiteMason
 	
 	getTableJSON(tableName) {
 		return JSON.stringify(this.cache.tables[tableName]);
-		
 	}
-	
-	
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -333,3 +348,10 @@ testResults.CommitTable1 = testdb.commitTable('users');
 testResults.CommitRecords1 = testdb.commitTableRecords('users');
 
 checkTestResults(testResults);
+
+async function test () {
+	let t = await testdb.allDataSQL('SELECT * FROM [users];');
+	console.log(JSON.stringify(t));
+};
+
+test();
