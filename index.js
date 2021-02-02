@@ -70,11 +70,11 @@ class SQLiteMason
 		////////////////////////////////////////////////////////////
 		this.defaultRowFlags = {
 			'type': 'BIGINT',
-			'primary': false,
-			'notNull': false,
+			'pk': false,
+			'notnull': false,
 			'unique': false,
 			'conflictResponse': 'ABORT',
-			'defaultVal': ''
+			'dflt_value': ''
 		}
 		Object.freeze(this.defaultRowFlags);
 		////////////////////////////////////////////////////////////
@@ -118,6 +118,7 @@ class SQLiteMason
 	
 	getTableFieldSQL(tableName, array) {
 		if (this.cache.tables[tableName] == undefined && array == undefined) return '';
+		
 		const table = (array == undefined) ? this.cache.tables[tableName] : array; // Use provided array instead of stored, if available.
 		
 		const prefix = 'CREATE TABLE IF NOT EXISTS [' + tableName + '] (\n';
@@ -134,10 +135,10 @@ class SQLiteMason
 			
 			let newSql = '    [' + fieldName + '] ' + row.type;
 			
-			if(row.primary) newSql += ' PRIMARY KEY ON CONFLICT ABORT'; // Begin adding flags.
-			if(row.notNull) newSql += ' NOT NULL';
+			if(row.pk) newSql += ' PRIMARY KEY ON CONFLICT ABORT'; // Begin adding flags.
+			if(row.notnull) newSql += ' NOT NULL';
 			if(row.unique) newSql += ' UNIQUE';
-			if(row.defaultVal != '' && row.unique == false) newSql += ` DEFAULT ${row.defaultVal}`; 
+			if(row.dflt_value != '' && row.unique == false) newSql += ` DEFAULT ${row.dflt_value}`; 
 			
 			// Appends comma if we have another row and always a newline escape sequence.
 			middle += newSql + ((i < fieldNames.length - 1) ? ',\n' : ''); // Sometimes you write something and it seems like a great idea,
@@ -152,6 +153,7 @@ class SQLiteMason
 	
 	getTableRecordSQL(tableName, array) {
 		if(this.cache.tables[tableName] == undefined) return '';
+		if(this.cache.tables[tableName].records == {}) return '';
 		
 		////////////////////////////////////////////////////////////
 		
@@ -161,7 +163,7 @@ class SQLiteMason
 		
 		////////////////////////////////////////////////////////////
 		
-		if(tableRecords == []) return ''; // If there are no records we can't do anything.
+		if(tableRecords == [] || tableRecords.length == 0) return ''; // If there are no records we can't do anything.
 		
 		////////////////////////////////////////////////////////////
 		
@@ -226,6 +228,7 @@ class SQLiteMason
 	
 	commitTable(tableName, array) {
 		if(array != undefined) this.cache.tables[tableName] = array;
+		
 		this.runSQL(this.getTableFieldSQL(tableName));
 		
 		return true;
@@ -236,7 +239,9 @@ class SQLiteMason
 	commitTableRecords(tableName, array) {
 		if(array != undefined) this.cache.tables[tableName].records = array;
 		
-		this.runSQL(this.getTableRecordSQL(tableName));
+		const query = this.getTableRecordSQL(tableName);
+		
+		if (query != '') this.runSQL(query);
 		
 		return true;
 	}
@@ -305,6 +310,68 @@ class SQLiteMason
 	getTableJSON(tableName) {
 		return JSON.stringify(this.cache.tables[tableName]);
 	}
+	
+	//////////////////////////////////////////////////////////////////////////////////////////
+	
+	wipeCache() {
+		this.cache = {
+			tables: {},
+			edited: false
+		};
+		
+		if({tables: {}, edited: false} == this.cache) {
+			return true;
+		} else {
+			false
+		}
+	}
+	
+	//////////////////////////////////////////////////////////////////////////////////////////
+	
+	// Reads database into Cache.
+	async syncCacheAll() {
+		this.wipeCache();
+		const tableNames = await this.allDataSQL("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'");
+		
+		////////////////////////////////////////////////////////////
+		
+		for(let t = 0; t < tableNames.length; t++)
+		{	
+			const currentTable = tableNames[t].name;
+			this.cache.tables[currentTable] = {
+				fields: {},
+				keys: [],
+				records: []
+			};
+			
+			//////////////////////////////			
+			const fieldDataRaw = await this.allDataSQL(`PRAGMA table_info(${currentTable});`);
+			const tableData = await this.allDataSQL(`SELECT * FROM ${currentTable}`);
+			
+			this.cache.tables[currentTable].fields = {};
+			
+			for(let fieldId = 0; fieldId < fieldDataRaw.length; fieldId++)
+			{
+				// Find the current field's name and generate an entry on the cache.
+				const fieldName = fieldDataRaw[fieldId].name;
+				this.cache.tables[currentTable].fields[fieldName] = {};				
+				this.cache.tables[currentTable].fields[fieldName] = fieldDataRaw[fieldId];
+			}
+			
+			this.cache.tables[currentTable].records = tableData;
+		}
+		
+		////////////////////////////////////////////////////////////
+		
+		return this.cache.tables;
+	}
+	
+	selectData(tableName, values, arguments) {
+		const table = this.cache.tables[tableName];
+		
+		
+		let valueString = values.join(', ');
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -331,27 +398,40 @@ function checkTestResults (testResults) {
 	}
 }
 
+/*
 //////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////
+
+Self-test section
 
 console.log('Beginning Self-test, false positives may be abound...');
 
 testResults.CreateTable1 = testdb.addTable('users');
-testResults.CreateField1 = testdb.addTableField('users', { name: 'internal_id', type: 'BIGINT', unique: true, primary: true, notNull: true });
-testResults.CreateField2 = testdb.addTableField('users', { name: 'discord_id', type: 'TEXT', unique: true, notNull: true });
-testResults.CreateField3 = testdb.addTableField('users', { name: 'sys_admin', type: 'BOOLEAN', notNull: true, defaultVal: '0'});
-testResults.AddRecord1 = testdb.addRecord('users', { 'internal_id': '12312', 'discord_id': '43242341235452354', 'sys_admin': false});
-testResults.AddRecord2 = testdb.addRecord('users', { 'internal_id': '12313', 'discord_id': '00002341235452354', 'sys_admin': false});
-
+testResults.CreateField1 = testdb.addTableField('users', { name: 'user_id', type: 'BIGINT', unique: true, pk: true, notnull: true });
+testResults.CreateField2 = testdb.addTableField('users', { name: 'discord_id', type: 'TEXT', unique: true, notnull: true });
+testResults.CreateField3 = testdb.addTableField('users', { name: 'sys_admin', type: 'BOOLEAN', notnull: true, dflt_value: '0'});
+testResults.AddRecord1 = testdb.addRecord('users', { 'user_id': '12312', 'discord_id': '43242341235452354', 'sys_admin': false});
+testResults.AddRecord2 = testdb.addRecord('users', { 'user_id': '12313', 'discord_id': '00002341235452354', 'sys_admin': false});
 testResults.CommitTable1 = testdb.commitTable('users');
-
 testResults.CommitRecords1 = testdb.commitTableRecords('users');
+
+testResults.CreateTable2 = testdb.addTable('servers');
+testResults.CreateField4 = testdb.addTableField('servers', { name: 'server_id', type: 'TEXT', unique: true, pk: true, notnull: true });
+testResults.CreateField5 = testdb.addTableField('servers', { name: 'premium_server', type: 'BOOLEAN', notnull: true, dflt_value: false });
+testResults.CommitTable2 = testdb.commitTable('servers');
+testResults.commitTableRecords2 = testdb.commitTableRecords('servers');
+
+testResults.CreateTable3 = testdb.addTable('users_experience');
+testResults.CreateField5 = testdb.addTableField('users_experience', { name: 'user_id', type: 'BIGINT', unique: true, pk: true, notnull: true });
+testResults.CreateField5 = testdb.addTableField('users_experience', { name: 'user_experience', type: 'BIGINT', notnull: true, dflt_value: 0 });
+testResults.CommitTable3 = testdb.commitTable('users_experience');
+testResults.CommitTableRecords3 = testdb.commitTableRecords('users_experience');
 
 checkTestResults(testResults);
 
-async function test () {
-	let t = await testdb.allDataSQL('SELECT * FROM [users];');
-	console.log(JSON.stringify(t));
+async function test () {	
+	testdb.wipeCache();
+	console.log("Data:" + JSON.stringify(await testdb.syncCacheAll()));
 };
 
-test();
+test();*/
